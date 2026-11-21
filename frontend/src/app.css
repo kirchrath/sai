@@ -1,0 +1,57 @@
+/* Ergaenzende Layout-Regeln; Gestaltung ansonsten ausschliesslich mit Bulma. */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.app-main {
+  flex: 1;
+  min-height: 0;
+}
+
+.app-main > .columns {
+  height: 100%;
+}
+
+.scroll-y {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.chat-column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.chat-messages {
+  flex: 1;
+}
+
+.chat-bubble {
+  max-width: 85%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-bubble.is-user {
+  margin-left: auto;
+}
+
+.chat-input textarea {
+  resize: vertical;
+}
+
+.conversation-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
