@@ -1,0 +1,94 @@
+spring:
+  application:
+    name: sai-backend
+  config:
+    # Agenten-Definitionen koennen aus einer externen Datei kommen (im Container gemountet)
+    import: optional:file:${SAI_AGENTS_FILE:./config/agents.yml}
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${SAI_DB_URL:jdbc:postgresql://localhost:5432/sai}
+    username: ${SAI_DB_USER:sai}
+    password: ${SAI_DB_PASSWORD:sai}
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: ${SAI_MAX_UPLOAD_SIZE:25MB}
+      max-request-size: ${SAI_MAX_UPLOAD_SIZE:25MB}
+  mvc:
+    async:
+      request-timeout: 10m
+  ai:
+    model:
+      # Embeddings ausschliesslich lokal ueber ONNX (Transformers)
+      embedding: transformers
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:nicht-konfiguriert}
+    openai:
+      api-key: ${OPENAI_API_KEY:nicht-konfiguriert}
+    chat:
+      client:
+        enabled: false
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: never
+    vectorstore:
+      pgvector:
+        initialize-schema: false
+        dimensions: 384
+        distance-type: COSINE_DISTANCE
+        index-type: HNSW
+    embedding:
+      transformer:
+        cache:
+          directory: ${SAI_MODEL_CACHE:${java.io.tmpdir}/sai-onnx-cache}
+    mcp:
+      server:
+        name: sai
+        version: 0.1.0
+        type: SYNC
+        protocol: STREAMABLE
+        instructions: "Tools des SAI-Agentensystems: Datum/Uhrzeit, Rechner, Web-Abruf und Wissenssuche pro Agent."
+        streamable-http:
+          mcp-endpoint: /mcp
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+sai:
+  security:
+    issuer-uri: ${SAI_OIDC_ISSUER_URI:http://localhost:8080/auth/realms/sai}
+    jwk-set-uri: ${SAI_OIDC_JWK_SET_URI:http://localhost:8080/auth/realms/sai/protocol/openid-connect/certs}
+    admin-role: admin
+  chat:
+    memory-max-messages: 30
+  knowledge:
+    chunk-size: 800
+    top-k: 5
+    similarity-threshold: 0.4
+  web-fetch:
+    timeout: 15s
+    max-bytes: 2000000
+    max-chars: 20000
+    allow-private-networks: false
+  # Standard-Agent, falls keine externe agents.yml vorhanden ist
+  agents:
+    - id: assistent
+      name: Assistent
+      description: Allgemeiner Assistent mit Basis-Tools
+      provider: anthropic
+      model: claude-sonnet-5-5
+      max-tokens: 4096
+      system-prompt: |
+        Du bist ein hilfsbereiter Assistent. Antworte auf Deutsch, praezise und gut strukturiert.
+      tools: [datetime, calculator, web-fetch]
