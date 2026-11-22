@@ -31,6 +31,12 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <!-- Tika 4 benoetigt commons-compress >= 1.28; transitiv wuerde sonst 1.27.1 aufgeloest -->
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>1.28.0</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
