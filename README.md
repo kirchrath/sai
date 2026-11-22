@@ -99,6 +99,25 @@ cd backend && mvn test && mvn spring-boot:run
 cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
 
+## Tests und Testabdeckung
+
+```bash
+cd backend && mvn verify
+```
+
+- Unit-Tests (JUnit 5, Mockito, Reactor `StepVerifier`) und Persistenz-Integrationstests mit
+  **Testcontainers** (`pgvector/pgvector:pg17`, Flyway) – für `mvn verify` wird daher Docker benötigt.
+- **JaCoCo** erzwingt **100 %** Instruction-, Branch-, Line- und Method-Coverage; der Build bricht sonst ab.
+  Report: `backend/target/site/jacoco/index.html`.
+- Von der Messung ausgenommen sind Controller (inkl. darin definierter Request-/View-Records), DTOs (`*Dto`),
+  Konfiguration (`config`-Paket, `SaiApplication`) und Entities.
+
+## Persistenz
+
+Eigene Tabellen werden mit **Spring Data JDBC** angesprochen. Entities sind Java-Records mit
+UUID-ID, `@Version` (optimistisches Locking) sowie `@CreatedDate`/`@LastModifiedDate` (`created_at`, `modified_at`).
+Die Tabellen von Spring AI (`spring_ai_chat_memory`, `vector_store`) verwaltet Spring AI selbst.
+
 ## REST-API (Auszug)
 
 | Methode | Pfad                                         | Beschreibung                         |
