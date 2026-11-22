@@ -77,7 +77,11 @@ public class KnowledgeService {
         if (chunks.isEmpty()) {
             throw new IllegalArgumentException("Aus der Datei konnte kein Text extrahiert werden");
         }
-        vectorStore.add(chunks);
+        try {
+            vectorStore.add(chunks);
+        } catch (RuntimeException e) {
+            throw new IllegalStateException("Embedding fehlgeschlagen: " + e.getMessage(), e);
+        }
 
         KnowledgeDocument document = new KnowledgeDocument(documentId, agentId, filename, file.getContentType(),
                 file.getSize(), chunks.size(), uploadedBy, Instant.now());

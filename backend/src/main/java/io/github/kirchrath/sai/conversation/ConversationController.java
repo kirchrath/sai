@@ -135,7 +135,18 @@ public class ConversationController {
         }
     }
 
-    private static String describe(Throwable e) {
+    /** Fehlermeldung inkl. Grundursache, z.B. "Request failed (401 Unauthorized ...)". */
+    static String describe(Throwable e) {
+        Throwable root = e;
+        while (root.getCause() != null && root.getCause() != root) {
+            root = root.getCause();
+        }
+        String top = message(e);
+        String cause = message(root);
+        return root == e || top.contains(cause) ? top : top + " (" + cause + ")";
+    }
+
+    private static String message(Throwable e) {
         String message = e.getMessage();
         return message == null || message.isBlank() ? e.getClass().getSimpleName() : message;
     }
