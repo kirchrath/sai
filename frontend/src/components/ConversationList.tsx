@@ -59,14 +59,15 @@ export default function ConversationList({ conversations, agents, activeId, onSe
                     <p className="conversation-title" title={c.title}>
                       {c.title}
                     </p>
-                    <p className="is-size-7 has-text-grey">
+                    <p className="is-size-7 conversation-meta">
                       {agentName(c.agentId)} · {new Date(c.updatedAt).toLocaleString('de-DE')}
                     </p>
                   </div>
-                  <div className="buttons are-small ml-2 is-flex-shrink-0">
+                  <div className="is-flex is-align-items-center is-flex-shrink-0 ml-2">
                     <button
-                      className="button is-small is-white"
+                      className="button is-small is-ghost px-1"
                       title="Umbenennen"
+                      aria-label="Umbenennen"
                       onClick={(e) => {
                         e.stopPropagation();
                         setDraft(c.title);
@@ -76,8 +77,9 @@ export default function ConversationList({ conversations, agents, activeId, onSe
                       ✎
                     </button>
                     <button
-                      className="delete is-small"
+                      className="delete is-small ml-1"
                       title="Loeschen"
+                      aria-label="Loeschen"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDelete(c.id);
