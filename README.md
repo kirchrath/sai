@@ -7,7 +7,11 @@ Agentensystem auf Basis von **Spring Boot 4.2 / Spring AI 2.1 (Java 25)** mit ei
 
 - **Agenten per YAML** (`config/agents.yml`): Provider (Anthropic oder OpenAI), Modell, System-Prompt, Tools, RAG
 - **Chat mit Streaming** (Server-Sent Events), Verlauf pro Benutzer in Postgres, Unterhaltungen umbenennen/löschen
-- **Tools**: Datum/Uhrzeit, Rechner (eigener Parser), Web-Abruf (mit SSRF-Schutz), Wissenssuche
+- **Tools**: Datum/Uhrzeit, Rechner (eigener Parser), Web-Abruf (mit SSRF-Schutz), Wissenssuche, Aufgaben
+- **Strukturierte Antworten je nach Anwendungsfall**: Ist das Ergebnis eine Aufgabe, legt das Modell sie über das
+  Tool `create_task` als **JSON** (nach Schema: Titel, Beschreibung, Priorität, Fälligkeit, Checkliste) an; sie wird
+  als Entity gespeichert, im Chat als Karte angezeigt und ist unter „Aufgaben“ bearbeitbar. Informationen beantwortet
+  das Modell in **Markdown**, das im Frontend mit einem eigenen, XSS-sicheren Parser gerendert wird
 - **RAG pro Agent**: Dokumente (PDF, DOCX, TXT, MD, HTML …) per Tika einlesen, lokale ONNX-Embeddings
   (all-MiniLM-L6-v2, 384 Dimensionen), Speicherung in pgvector. Hochladen/Löschen nur mit Rolle `admin`
 - **MCP-Server** (Streamable HTTP unter `/mcp`), abgesichert per Keycloak-Token
@@ -72,7 +76,7 @@ sai:
       provider: anthropic          # anthropic | openai
       model: claude-sonnet-5-5
       system-prompt: Antworte nur auf Basis der Wissensbasis.
-      tools: [knowledge]           # datetime, calculator, web-fetch, knowledge
+      tools: [knowledge, tasks]    # datetime, calculator, web-fetch, knowledge, tasks
       rag: true                    # Kontext automatisch beifügen
 ```
 
@@ -114,9 +118,14 @@ cd backend && mvn verify
 
 ## Persistenz
 
-Eigene Tabellen werden mit **Spring Data JDBC** angesprochen. Entities sind Java-Records mit
-UUID-ID, `@Version` (optimistisches Locking) sowie `@CreatedDate`/`@LastModifiedDate` (`created_at`, `modified_at`).
-Die Tabellen von Spring AI (`spring_ai_chat_memory`, `vector_store`) verwaltet Spring AI selbst.
+Eigene Tabellen werden mit **Spring Data JDBC** angesprochen. Entities (`conversation`, `chat_message`,
+`knowledge_document`, `task`, `task_step`) sind Java-Records mit UUID-ID, `@Version` (optimistisches Locking,
+veraltete Änderungen → HTTP 409) sowie `@CreatedDate`/`@LastModifiedDate` (`created_at`, `modified_at`).
+
+Der Gesprächskontext für das Modell liegt in der **Session-API** von Spring AI (`ai_session*`-Tabellen,
+Fenster der letzten `sai.chat.memory-max-messages` Nachrichten, Gültigkeit `SAI_SESSION_TTL`, Standard 10 Jahre).
+Sie ersetzt die in Spring AI 2.1 abgekündigte `ChatMemory`. Der anzeigbare Verlauf liegt dauerhaft in `chat_message`.
+Embeddings liegen in `vector_store` (pgvector).
 
 ## REST-API (Auszug)
 
@@ -129,3 +138,7 @@ Die Tabellen von Spring AI (`spring_ai_chat_memory`, `vector_store`) verwaltet S
 | POST    | `/api/conversations/{id}/messages`           | Nachricht senden, Antwort als SSE (`token`, `done`, `error`) |
 | GET/POST| `/api/agents/{agentId}/documents`            | Wissensdokumente (Upload nur admin)  |
 | DELETE  | `/api/agents/{agentId}/documents/{docId}`    | Dokument löschen (nur admin)         |
+| GET     | `/api/tasks?status=&conversationId=`         | Eigene Aufgaben (gefiltert)          |
+| GET/PUT/DELETE | `/api/tasks/{id}`                     | Aufgabe lesen / ändern (inkl. Checkliste, mit `version`) / löschen |
+
+Der Chat-Stream liefert zusätzlich das Event `task`, sobald der Agent eine Aufgabe angelegt hat.
