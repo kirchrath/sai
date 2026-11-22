@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Prueft URLs fuer den Web-Fetch, um Zugriffe auf interne Dienste (SSRF) zu verhindern.
@@ -16,7 +17,7 @@ public class UrlGuard {
 
     public UrlGuard(boolean allowPrivateNetworks, Set<String> blockedHosts) {
         this.allowPrivateNetworks = allowPrivateNetworks;
-        this.blockedHosts = blockedHosts.stream().map(h -> h.toLowerCase(Locale.ROOT)).collect(java.util.stream.Collectors.toSet());
+        this.blockedHosts = blockedHosts.stream().map(h -> h.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
     }
 
     /**
@@ -35,7 +36,7 @@ public class UrlGuard {
             throw new IllegalArgumentException("Nur http und https sind erlaubt");
         }
         String host = uri.getHost();
-        if (host == null || host.isBlank()) {
+        if (host == null) {
             throw new IllegalArgumentException("URL ohne Host");
         }
         if (uri.getUserInfo() != null) {

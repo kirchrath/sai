@@ -81,7 +81,8 @@ public class WebFetchTools {
     }
 
     private String extractText(byte[] body, URI uri) {
-        String name = uri.getPath() == null || uri.getPath().isBlank() ? "index.html" : uri.getPath();
+        String path = uri.getPath();
+        String name = path.isEmpty() ? "index.html" : path;
         ByteArrayResource resource = new ByteArrayResource(body) {
             @Override
             public String getFilename() {
@@ -91,9 +92,7 @@ public class WebFetchTools {
         List<Document> documents = new TikaDocumentReader(resource).get();
         StringBuilder text = new StringBuilder();
         for (Document document : documents) {
-            if (document.getText() != null) {
-                text.append(document.getText()).append('\n');
-            }
+            text.append(document.getText()).append('\n');
         }
         return text.toString().replaceAll("\\n{3,}", "\n\n").strip();
     }
