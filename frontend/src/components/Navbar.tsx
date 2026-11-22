@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { logout, type User } from '../lib/auth';
 
-export type Page = 'chat' | 'knowledge';
+export type Page = 'chat' | 'tasks' | 'knowledge';
 
 interface Props {
   user: User;
@@ -37,6 +37,9 @@ export default function Navbar({ user, page, onNavigate }: Props) {
         <div className="navbar-start">
           <a className={`navbar-item ${page === 'chat' ? 'is-active' : ''}`} onClick={() => go('chat')}>
             Chat
+          </a>
+          <a className={`navbar-item ${page === 'tasks' ? 'is-active' : ''}`} onClick={() => go('tasks')}>
+            Aufgaben
           </a>
           <a className={`navbar-item ${page === 'knowledge' ? 'is-active' : ''}`} onClick={() => go('knowledge')}>
             Wissensbasis

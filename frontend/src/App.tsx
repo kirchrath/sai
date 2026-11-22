@@ -3,6 +3,7 @@ import { currentUser, initAuth, login, type User } from './lib/auth';
 import Navbar, { type Page } from './components/Navbar';
 import ChatPage from './components/ChatPage';
 import KnowledgePage from './components/KnowledgePage';
+import TasksPage from './components/TasksPage';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -45,7 +46,11 @@ export default function App() {
   return (
     <div className="app">
       <Navbar user={user} page={page} onNavigate={setPage} />
-      <main className="app-main">{page === 'chat' ? <ChatPage /> : <KnowledgePage user={user} />}</main>
+      <main className="app-main">
+        {page === 'chat' && <ChatPage />}
+        {page === 'tasks' && <TasksPage />}
+        {page === 'knowledge' && <KnowledgePage user={user} />}
+      </main>
     </div>
   );
 }

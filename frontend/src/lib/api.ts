@@ -1,5 +1,5 @@
 import { getAccessToken, login } from './auth';
-import type { Agent, ChatMessage, Conversation, KnowledgeDocument } from './types';
+import type { Agent, ChatMessage, Conversation, KnowledgeDocument, Task, TaskStatus, TaskUpdate } from './types';
 
 export class ApiError extends Error {
   constructor(
@@ -30,6 +30,7 @@ async function authorizedFetch(path: string, init: RequestInit = {}): Promise<Re
       /* kein JSON */
     }
     if (response.status === 403) detail = 'Keine Berechtigung fuer diese Aktion';
+    if (response.status === 409) detail = 'Die Aufgabe wurde zwischenzeitlich geaendert. Bitte neu laden.';
     throw new ApiError(detail, response.status);
   }
   return response;
@@ -64,10 +65,22 @@ export const api = {
   },
   deleteDocument: (agentId: string, documentId: string) =>
     json<void>(`/api/agents/${agentId}/documents/${documentId}`, { method: 'DELETE' }),
+
+  tasks: (filter: { status?: TaskStatus; conversationId?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (filter.status) params.set('status', filter.status);
+    if (filter.conversationId) params.set('conversationId', filter.conversationId);
+    const query = params.toString();
+    return json<Task[]>(`/api/tasks${query ? `?${query}` : ''}`);
+  },
+  updateTask: (id: string, update: TaskUpdate) =>
+    json<Task>(`/api/tasks/${id}`, { method: 'PUT', ...jsonBody(update) }),
+  deleteTask: (id: string) => json<void>(`/api/tasks/${id}`, { method: 'DELETE' }),
 };
 
 export interface StreamHandlers {
   onToken: (text: string) => void;
+  onTask: (task: Task) => void;
   onDone: (message: ChatMessage) => void;
   onError: (message: string) => void;
 }
@@ -108,6 +121,7 @@ export async function streamMessage(
     if (data.length === 0) return;
     const payload = JSON.parse(data.join('\n'));
     if (event === 'token') handlers.onToken(payload.t);
+    else if (event === 'task') handlers.onTask(payload as Task);
     else if (event === 'done') {
       finished = true;
       handlers.onDone(payload as ChatMessage);

@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, streamMessage } from '../lib/api';
-import type { Agent, ChatMessage, Conversation } from '../lib/types';
+import { toUpdate, type Agent, type ChatMessage, type Conversation, type Task, type TaskUpdate } from '../lib/types';
 import AgentTags from './AgentTags';
+import Markdown from './Markdown';
+import TaskCard from './TaskCard';
+import TaskEditModal from './TaskEditModal';
+
+type TimelineEntry = { kind: 'message'; at: string; message: ChatMessage } | { kind: 'task'; at: string; task: Task };
 
 interface Props {
   conversation: Conversation;
@@ -11,6 +16,8 @@ interface Props {
 
 export default function ChatView({ conversation, agent, onUpdated }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [editing, setEditing] = useState<Task | null>(null);
   const [draft, setDraft] = useState('');
   const [streaming, setStreaming] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,9 +26,11 @@ export default function ChatView({ conversation, agent, onUpdated }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    api
-      .messages(conversation.id)
-      .then(setMessages)
+    Promise.all([api.messages(conversation.id), api.tasks({ conversationId: conversation.id })])
+      .then(([m, t]) => {
+        setMessages(m);
+        setTasks(t);
+      })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
     return () => abortRef.current?.abort();
@@ -29,7 +38,31 @@ export default function ChatView({ conversation, agent, onUpdated }: Props) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, streaming]);
+  }, [messages, tasks, streaming]);
+
+  const replaceTask = (updated: Task) => setTasks((list) => list.map((t) => (t.id === updated.id ? updated : t)));
+
+  const saveTask = async (task: Task, update: TaskUpdate) => {
+    try {
+      replaceTask(await api.updateTask(task.id, update));
+    } catch (e) {
+      replaceTask(task);
+      setError((e as Error).message);
+    }
+  };
+
+  const toggleStep = (task: Task, stepId: string) => {
+    const update = toUpdate(task);
+    update.steps = update.steps.map((s) => (s.id === stepId ? { ...s, done: !s.done } : s));
+    // Sofort anzeigen; die Serverantwort (neue Versionen) ersetzt den Stand danach
+    replaceTask({ ...task, steps: task.steps.map((s) => (s.id === stepId ? { ...s, done: !s.done } : s)) });
+    saveTask(task, update);
+  };
+
+  const timeline: TimelineEntry[] = [
+    ...messages.map((message): TimelineEntry => ({ kind: 'message', at: message.createdAt, message })),
+    ...tasks.map((task): TimelineEntry => ({ kind: 'task', at: task.createdAt, task })),
+  ].sort((a, b) => a.at.localeCompare(b.at));
 
   const send = async () => {
     const content = draft.trim();
@@ -60,6 +93,7 @@ export default function ChatView({ conversation, agent, onUpdated }: Props) {
             answer += text;
             setStreaming(answer);
           },
+          onTask: (task) => setTasks((list) => [...list, task]),
           onDone: (message) => setMessages((list) => [...list, message]),
           onError: (message) => setError(message),
         },
@@ -90,12 +124,16 @@ export default function ChatView({ conversation, agent, onUpdated }: Props) {
         {!loading && messages.length === 0 && streaming === null && (
           <p className="has-text-grey has-text-centered mt-6">Stelle deine erste Frage an {agent?.name ?? 'den Agenten'}.</p>
         )}
-        {messages.map((m) => (
-          <Bubble key={m.id} role={m.role} content={m.content} />
-        ))}
-        {streaming !== null && (
-          <Bubble role="ASSISTANT" content={streaming} pending />
+        {timeline.map((entry) =>
+          entry.kind === 'message' ? (
+            <Bubble key={entry.message.id} role={entry.message.role} content={entry.message.content} />
+          ) : (
+            <div key={entry.task.id} className="chat-bubble">
+              <TaskCard task={entry.task} onToggleStep={toggleStep} onEdit={setEditing} />
+            </div>
+          ),
         )}
+        {streaming !== null && <Bubble role="ASSISTANT" content={streaming} pending />}
         {error && (
           <div className="notification is-danger is-light">
             <button className="delete" onClick={() => setError(null)} />
@@ -104,6 +142,16 @@ export default function ChatView({ conversation, agent, onUpdated }: Props) {
         )}
         <div ref={bottomRef} />
       </div>
+      {editing && (
+        <TaskEditModal
+          task={editing}
+          onClose={() => setEditing(null)}
+          onSave={async (update) => {
+            replaceTask(await api.updateTask(editing.id, update));
+            setEditing(null);
+          }}
+        />
+      )}
 
       <div className="chat-input p-4" style={{ borderTop: '1px solid var(--bulma-border)' }}>
         <div className="field has-addons">
@@ -151,10 +199,8 @@ function Bubble({ role, content, pending }: { role: ChatMessage['role']; content
     <div className={`message chat-bubble mb-3 ${isUser ? 'is-user is-primary' : 'is-light'}`}>
       <div className="message-body py-3 px-4">
         <p className="is-size-7 has-text-weight-semibold mb-1">{isUser ? 'Du' : 'Agent'}</p>
-        {content}
-        {pending && (
-          <span className="has-text-grey">{content ? ' ▍' : 'denkt nach …'}</span>
-        )}
+        {isUser ? <div className="user-text">{content}</div> : content && <Markdown text={content} />}
+        {pending && <span className="has-text-grey">{content ? '▍' : 'denkt nach …'}</span>}
       </div>
     </div>
   );

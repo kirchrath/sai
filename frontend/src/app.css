@@ -38,8 +38,30 @@ body,
 
 .chat-bubble {
   max-width: 85%;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.user-text {
+  white-space: pre-wrap;
+}
+
+/* Markdown in Antworten: kompakte Abstaende innerhalb der Sprechblasen */
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown pre {
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.task-steps {
+  list-style: none;
+  margin: 0.5rem 0 0;
+}
+
+.task-step-done {
+  text-decoration: line-through;
 }
 
 .chat-bubble.is-user {
