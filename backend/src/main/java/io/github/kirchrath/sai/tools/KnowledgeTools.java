@@ -13,8 +13,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class KnowledgeTools {
 
-    public static final String AGENT_ID = "agentId";
-
     private final KnowledgeService knowledgeService;
 
     public KnowledgeTools(KnowledgeService knowledgeService) {
@@ -25,7 +23,7 @@ public class KnowledgeTools {
             description = "Durchsucht die Wissensbasis (hochgeladene Dokumente) dieses Agenten semantisch.")
     public String searchKnowledge(@ToolParam(description = "Suchanfrage in natuerlicher Sprache") String query,
             ToolContext toolContext) {
-        Object agentId = toolContext.getContext().get(AGENT_ID);
+        Object agentId = toolContext.getContext().get(ToolContextKeys.AGENT_ID);
         if (agentId == null) {
             return "Keine Wissensbasis verfuegbar";
         }

@@ -3,6 +3,8 @@ package io.github.kirchrath.sai.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 import io.github.kirchrath.sai.config.PersistenceConfig;
@@ -12,6 +14,12 @@ import io.github.kirchrath.sai.conversation.Conversation;
 import io.github.kirchrath.sai.conversation.ConversationRepository;
 import io.github.kirchrath.sai.knowledge.KnowledgeDocument;
 import io.github.kirchrath.sai.knowledge.KnowledgeDocumentRepository;
+import io.github.kirchrath.sai.task.Task;
+import io.github.kirchrath.sai.task.TaskPriority;
+import io.github.kirchrath.sai.task.TaskRepository;
+import io.github.kirchrath.sai.task.TaskStatus;
+import io.github.kirchrath.sai.task.TaskStep;
+import io.github.kirchrath.sai.task.TaskStepRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jdbc.test.autoconfigure.DataJdbcTest;
@@ -37,6 +45,12 @@ class RepositoryIntegrationTest {
 
     @Autowired
     KnowledgeDocumentRepository documents;
+
+    @Autowired
+    TaskRepository tasks;
+
+    @Autowired
+    TaskStepRepository steps;
 
     @Autowired
     JdbcClient jdbc;
@@ -122,8 +136,42 @@ class RepositoryIntegrationTest {
     }
 
     @Test
+    void tasksWithStepsAreAuditedAndScoped() {
+        Conversation conversation = conversations.save(Conversation.create("erin", "assistent", "Chat"));
+        Task task = tasks.save(Task.create("erin", "assistent", conversation.id(), "Umzug planen", "Beschreibung",
+                TaskPriority.HIGH, LocalDate.of(2026, 12, 24)));
+        TaskStep second = steps.save(TaskStep.create(task.id(), 1, "Kartons packen", false));
+        TaskStep first = steps.save(TaskStep.create(task.id(), 0, "Termin festlegen", true));
+
+        assertThat(task.version()).isZero();
+        assertThat(task.status()).isEqualTo(TaskStatus.OPEN);
+        assertThat(task.createdAt()).isNotNull();
+        assertThat(first.version()).isZero();
+        assertThat(first.modifiedAt()).isNotNull();
+        assertThat(tasks.findByIdAndUserId(task.id(), "erin")).contains(task);
+        assertThat(tasks.findByIdAndUserId(task.id(), "mallory")).isEmpty();
+        assertThat(tasks.findByUserIdOrderByCreatedAtDesc("erin")).containsExactly(task);
+        assertThat(tasks.findByUserIdAndStatusOrderByCreatedAtDesc("erin", TaskStatus.OPEN)).containsExactly(task);
+        assertThat(tasks.findByUserIdAndStatusOrderByCreatedAtDesc("erin", TaskStatus.DONE)).isEmpty();
+        assertThat(tasks.findByUserIdAndConversationIdOrderByCreatedAtAsc("erin", conversation.id()))
+                .containsExactly(task);
+        assertThat(steps.findByTaskIdOrderByPositionAsc(task.id())).containsExactly(first, second);
+        assertThat(steps.findByTaskIdInOrderByPositionAsc(List.of(task.id()))).containsExactly(first, second);
+
+        TaskStep toggled = steps.save(second.withChanges(1, "Kartons packen", true));
+        assertThat(toggled.version()).isEqualTo(1);
+
+        // Unterhaltung loeschen behaelt die Aufgabe, Aufgabe loeschen entfernt die Schritte
+        conversations.delete(conversation);
+        assertThat(tasks.findById(task.id()).orElseThrow().conversationId()).isNull();
+        tasks.deleteById(task.id());
+        assertThat(steps.findByTaskIdOrderByPositionAsc(task.id())).isEmpty();
+    }
+
+    @Test
     void springAiTablesExist() {
         assertThat(jdbc.sql("SELECT count(*) FROM vector_store").query(Long.class).single()).isZero();
-        assertThat(jdbc.sql("SELECT count(*) FROM spring_ai_chat_memory").query(Long.class).single()).isZero();
+        assertThat(jdbc.sql("SELECT count(*) FROM ai_session").query(Long.class).single()).isZero();
+        assertThat(jdbc.sql("SELECT count(*) FROM ai_session_event").query(Long.class).single()).isZero();
     }
 }

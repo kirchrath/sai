@@ -20,7 +20,7 @@ class KnowledgeToolsTest {
     void searchesKnowledgeOfAgentFromContext() {
         when(knowledge.searchAsText("wissen", "Wartung")).thenReturn("Treffer");
 
-        assertThat(tools.searchKnowledge("Wartung", new ToolContext(Map.of(KnowledgeTools.AGENT_ID, "wissen"))))
+        assertThat(tools.searchKnowledge("Wartung", new ToolContext(Map.of(ToolContextKeys.AGENT_ID, "wissen"))))
                 .isEqualTo("Treffer");
     }
 

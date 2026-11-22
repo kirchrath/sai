@@ -92,6 +92,7 @@ public class ConversationController {
             case ChatEvent.Done done -> ServerSentEvent.<Object>builder(done.message()).event("done").build();
             case ChatEvent.Error error -> ServerSentEvent.<Object>builder(Map.of("message", error.message()))
                     .event("error").build();
+            case ChatEvent.TaskCreated created -> ServerSentEvent.<Object>builder(created.task()).event("task").build();
             case ChatEvent.Heartbeat heartbeat -> ServerSentEvent.<Object>builder().comment("keepalive").build();
         };
     }

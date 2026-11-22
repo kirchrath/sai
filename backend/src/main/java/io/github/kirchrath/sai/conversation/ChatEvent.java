@@ -1,5 +1,7 @@
 package io.github.kirchrath.sai.conversation;
 
+import io.github.kirchrath.sai.task.TaskDto;
+
 /**
  * Ereignisse eines Chat-Streams; werden vom Controller als Server-Sent Events ausgeliefert.
  */
@@ -15,6 +17,10 @@ public sealed interface ChatEvent {
 
     /** Fehler; der Stream endet danach. */
     record Error(String message) implements ChatEvent {
+    }
+
+    /** Der Agent hat eine Aufgabe angelegt (strukturiertes Ergebnis). */
+    record TaskCreated(TaskDto task) implements ChatEvent {
     }
 
     /** Keepalive, damit Proxies die Verbindung nicht schliessen. */

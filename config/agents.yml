@@ -11,7 +11,8 @@
 #   temperature   optional
 #   max-tokens    optional
 #   system-prompt System-Prompt
-#   tools         datetime, calculator, web-fetch, knowledge
+#   tools         datetime, calculator, web-fetch, knowledge, tasks
+#                 (tasks: Ergebnis "Aufgabe" wird als JSON strukturiert angelegt und gespeichert)
 #   rag           true = passende Abschnitte aus der Wissensbasis automatisch mitgeben
 sai:
   agents:
@@ -24,7 +25,7 @@ sai:
       system-prompt: |
         Du bist ein hilfsbereiter Assistent. Antworte auf Deutsch, praezise und gut strukturiert.
         Nutze die verfuegbaren Tools, wenn sie die Antwort verbessern.
-      tools: [datetime, calculator, web-fetch]
+      tools: [datetime, calculator, web-fetch, tasks]
 
     - id: wissen
       name: Wissensassistent
@@ -36,15 +37,14 @@ sai:
       system-prompt: |
         Du beantwortest Fragen ausschliesslich auf Basis der Wissensbasis. Nenne die Quelle (Dateiname).
         Wenn die Wissensbasis keine Antwort enthaelt, sage das offen.
-      tools: [knowledge]
+      tools: [knowledge, tasks]
       rag: true
 
     - id: recherche
       name: Recherche (OpenAI)
       description: Recherchiert im Web und rechnet nach
       provider: openai
-      # Modellnamen an den eigenen OpenAI-Zugang anpassen
-      model: gpt-5
+      model: gpt-5.1-sol
       system-prompt: |
         Du recherchierst gruendlich im Web, gibst URLs als Quellen an und antwortest auf Deutsch.
-      tools: [web-fetch, datetime, calculator]
+      tools: [web-fetch, datetime, calculator, tasks]

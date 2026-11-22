@@ -7,11 +7,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.github.kirchrath.sai.agent.AgentChatService;
 import io.github.kirchrath.sai.agent.AgentDefinition;
 import io.github.kirchrath.sai.agent.AgentRegistry;
+import io.github.kirchrath.sai.agent.ChatTurn;
 import io.github.kirchrath.sai.config.SaiProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 import reactor.core.scheduler.Schedulers;
 
 /**
@@ -47,7 +49,12 @@ public class ChatStreamService {
         StringBuilder answer = new StringBuilder();
         AtomicBoolean saved = new AtomicBoolean();
 
-        Flux<ChatEvent> tokens = chatService.stream(agent, conversationId.toString(), content)
+        // Vom create_task-Tool angelegte Aufgaben werden als eigene Events in den Stream eingespeist
+        Sinks.Many<ChatEvent> taskEvents = Sinks.many().unicast().onBackpressureBuffer();
+        ChatTurn turn = new ChatTurn(agent, conversationId.toString(), userId, content,
+                task -> taskEvents.tryEmitNext(new ChatEvent.TaskCreated(task)));
+
+        Flux<ChatEvent> tokens = chatService.stream(turn)
                 .filter(chunk -> !chunk.isEmpty())
                 .doOnNext(answer::append)
                 .map(ChatEvent.Token::new);
@@ -61,7 +68,7 @@ public class ChatStreamService {
         Flux<ChatEvent> heartbeat = Flux.interval(heartbeatInterval).map(i -> new ChatEvent.Heartbeat());
 
         // Der LLM-Stream wird genau einmal abonniert; der Heartbeat endet mit dem Done-Event.
-        return Flux.merge(tokens.concatWith(done), heartbeat)
+        return Flux.merge(tokens.concatWith(done), taskEvents.asFlux(), heartbeat)
                 .takeUntil(ChatEvent.Done.class::isInstance)
                 .onErrorResume(e -> {
                     log.warn("Chat-Stream fuer Unterhaltung {} fehlgeschlagen", conversationId, e);

@@ -17,9 +17,14 @@ import java.util.List;
 import io.github.kirchrath.sai.TestAgents;
 import io.github.kirchrath.sai.agent.AgentChatService;
 import io.github.kirchrath.sai.agent.AgentRegistry;
+import io.github.kirchrath.sai.agent.ChatTurn;
+import io.github.kirchrath.sai.task.Task;
+import io.github.kirchrath.sai.task.TaskDto;
+import io.github.kirchrath.sai.task.TaskPriority;
 import io.github.kirchrath.sai.config.SaiProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
@@ -46,8 +51,7 @@ class ChatStreamServiceTest {
 
     @Test
     void streamsTokensAndStoresAnswer() {
-        when(chat.stream(registry.get("assistent"), conversation.id().toString(), "Hi"))
-                .thenReturn(Flux.just("Hal", "", "lo"));
+        when(chat.stream(any(ChatTurn.class))).thenReturn(Flux.just("Hal", "", "lo"));
 
         StepVerifier.create(service(Duration.ofHours(1)).send(conversation.id(), "alice", "Hi"))
                 .expectNext(new ChatEvent.Token("Hal"), new ChatEvent.Token("lo"), new ChatEvent.Done(stored))
@@ -55,11 +59,38 @@ class ChatStreamServiceTest {
 
         verify(conversations).append(conversation.id(), ChatMessage.Role.USER, "Hi");
         verify(conversations).append(conversation.id(), ChatMessage.Role.ASSISTANT, "Hallo");
+        ArgumentCaptor<ChatTurn> turn = ArgumentCaptor.forClass(ChatTurn.class);
+        verify(chat).stream(turn.capture());
+        assertThat(turn.getValue().agent()).isEqualTo(registry.get("assistent"));
+        assertThat(turn.getValue().conversationId()).isEqualTo(conversation.id().toString());
+        assertThat(turn.getValue().userId()).isEqualTo("alice");
+        assertThat(turn.getValue().message()).isEqualTo("Hi");
+    }
+
+    @Test
+    void emitsCreatedTasksAsEvents() {
+        TaskDto task = TaskDto.of(Task.create("alice", "assistent", conversation.id(), "Aufgabe", "", TaskPriority.HIGH,
+                null), List.of());
+        when(chat.stream(any(ChatTurn.class))).thenAnswer(invocation -> {
+            ChatTurn turn = invocation.getArgument(0);
+            return Flux.defer(() -> {
+                turn.taskListener().taskCreated(task);
+                return Flux.just("Angelegt.");
+            });
+        });
+
+        List<ChatEvent> events = service(Duration.ofHours(1)).send(conversation.id(), "alice", "Plane etwas")
+                .collectList().block();
+
+        // Die Reihenfolge von Tool-Ereignis und Text haengt vom Modell ab; Done kommt immer zuletzt
+        assertThat(events).containsExactlyInAnyOrder(new ChatEvent.TaskCreated(task),
+                new ChatEvent.Token("Angelegt."), new ChatEvent.Done(stored));
+        assertThat(events.getLast()).isEqualTo(new ChatEvent.Done(stored));
     }
 
     @Test
     void errorAfterTokensStoresPartialAnswer() {
-        when(chat.stream(any(), anyString(), anyString()))
+        when(chat.stream(any(ChatTurn.class)))
                 .thenReturn(Flux.concat(Flux.just("Teil"), Flux.error(new RuntimeException("kaputt"))));
 
         StepVerifier.create(service(Duration.ofHours(1)).send(conversation.id(), "alice", "Hi"))
@@ -72,7 +103,7 @@ class ChatStreamServiceTest {
 
     @Test
     void errorWithoutTokensStoresNothing() {
-        when(chat.stream(any(), anyString(), anyString())).thenReturn(Flux.error(new IllegalStateException()));
+        when(chat.stream(any(ChatTurn.class))).thenReturn(Flux.error(new IllegalStateException()));
 
         StepVerifier.create(service(Duration.ofHours(1)).send(conversation.id(), "alice", "Hi"))
                 .expectNext(new ChatEvent.Error("IllegalStateException"))
@@ -83,7 +114,7 @@ class ChatStreamServiceTest {
 
     @Test
     void failingStoreIsNotRetriedAsPartialAnswer() {
-        when(chat.stream(any(), anyString(), anyString())).thenReturn(Flux.just("Antwort"));
+        when(chat.stream(any(ChatTurn.class))).thenReturn(Flux.just("Antwort"));
         when(conversations.append(eq(conversation.id()), eq(ChatMessage.Role.ASSISTANT), anyString()))
                 .thenThrow(new RuntimeException("DB weg"));
 
@@ -96,7 +127,7 @@ class ChatStreamServiceTest {
 
     @Test
     void cancelStoresPartialAnswer() {
-        when(chat.stream(any(), anyString(), anyString())).thenReturn(Flux.concat(Flux.just("Halb"), Flux.never()));
+        when(chat.stream(any(ChatTurn.class))).thenReturn(Flux.concat(Flux.just("Halb"), Flux.never()));
 
         StepVerifier.create(service(Duration.ofHours(1)).send(conversation.id(), "alice", "Hi"))
                 .expectNext(new ChatEvent.Token("Halb"))
@@ -109,7 +140,7 @@ class ChatStreamServiceTest {
 
     @Test
     void cancelWithoutTokensStoresNothing() {
-        when(chat.stream(any(), anyString(), anyString())).thenReturn(Flux.never());
+        when(chat.stream(any(ChatTurn.class))).thenReturn(Flux.never());
 
         StepVerifier.create(service(Duration.ofHours(1)).send(conversation.id(), "alice", "Hi"))
                 .thenCancel()
@@ -120,7 +151,7 @@ class ChatStreamServiceTest {
 
     @Test
     void emitsHeartbeatsWhileWaiting() {
-        when(chat.stream(any(), anyString(), anyString())).thenReturn(Flux.never());
+        when(chat.stream(any(ChatTurn.class))).thenReturn(Flux.never());
 
         StepVerifier.withVirtualTime(() -> service(Duration.ofSeconds(15)).send(conversation.id(), "alice", "Hi"))
                 .thenAwait(Duration.ofSeconds(30))

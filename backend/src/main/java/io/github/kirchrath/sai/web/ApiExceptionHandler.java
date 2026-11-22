@@ -2,6 +2,7 @@ package io.github.kirchrath.sai.web;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -28,6 +29,12 @@ public class ApiExceptionHandler {
     ProblemDetail unavailable(IllegalStateException e) {
         log.warn("Dienst nicht verfuegbar", e);
         return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage());
+    }
+
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    ProblemDetail conflict(OptimisticLockingFailureException e) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "Der Datensatz wurde zwischenzeitlich geaendert. Bitte neu laden.");
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

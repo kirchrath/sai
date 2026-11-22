@@ -20,6 +20,8 @@ class ApiExceptionHandlerTest {
         assertThat(handler.unavailable(new IllegalStateException("offline")))
                 .satisfies(p -> assertThat(p.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE.value()))
                 .satisfies(p -> assertThat(p.getDetail()).isEqualTo("offline"));
+        assertThat(handler.conflict(new org.springframework.dao.OptimisticLockingFailureException("alt")).getStatus())
+                .isEqualTo(HttpStatus.CONFLICT.value());
         assertThat(handler.tooLarge(new MaxUploadSizeExceededException(10)).getStatus())
                 .isEqualTo(HttpStatus.CONTENT_TOO_LARGE.value());
     }
