@@ -31,6 +31,9 @@ services:
       KC_HOSTNAME: ${SAI_PUBLIC_URL:?SAI_PUBLIC_URL in .env setzen}/auth
       KC_PROXY_HEADERS: xforwarded
       KC_HEALTH_ENABLED: "true"
+      # Veraltete Optionen/Features abschalten (nicht genutzt: Social Login/Identity Brokering)
+      KC_SPI_STICKY_SESSION_ENCODER__INFINISPAN__SHOULD_ATTACH_ROUTE: "false"
+      KC_FEATURES_DISABLED: identity-brokering-api,twitter-broker
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-kcadmin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD in .env setzen}
       # Platzhalter fuer den Realm-Import (keycloak/realm-sai.json)

@@ -18,6 +18,10 @@
       { "name": "user", "description": "Darf mit Agenten chatten" }
     ]
   },
+  "scopeMappings": [
+    { "client": "sai-frontend", "roles": ["admin", "user"] },
+    { "client": "sai-mcp", "roles": ["user"] }
+  ],
   "clients": [
     {
       "clientId": "sai-frontend",
@@ -29,6 +33,7 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "frontchannelLogout": true,
+      "fullScopeAllowed": false,
       "rootUrl": "${SAI_PUBLIC_URL}",
       "baseUrl": "/",
       "redirectUris": ["${SAI_PUBLIC_URL}/*", "http://localhost:5173/*"],
@@ -49,7 +54,8 @@
       "standardFlowEnabled": false,
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": true
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": false
     }
   ],
   "users": [
