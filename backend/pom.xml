@@ -91,10 +91,14 @@
             <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
 
-        <!-- Spring AI: Chat-Memory in Postgres -->
+        <!-- Spring AI: Session-Memory (Gespraechskontext fuer das Modell) in Postgres -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-chat-memory-repository-jdbc</artifactId>
+            <artifactId>spring-ai-starter-model-session-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-session-advisor</artifactId>
         </dependency>
 
         <!-- Spring AI: RAG (lokale ONNX-Embeddings, pgvector, Tika) -->

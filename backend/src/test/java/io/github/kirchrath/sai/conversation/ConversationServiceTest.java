@@ -21,16 +21,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
-import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.session.SessionService;
 
 class ConversationServiceTest {
 
     private final ConversationRepository conversations = mock(ConversationRepository.class);
     private final ChatMessageRepository messages = mock(ChatMessageRepository.class);
-    private final ChatMemory memory = mock(ChatMemory.class);
+    private final SessionService sessions = mock(SessionService.class);
     private final AgentRegistry registry = new AgentRegistry(
             new SaiProperties(null, null, null, null, List.of(TestAgents.plain("assistent"))));
-    private final ConversationService service = new ConversationService(conversations, messages, registry, memory);
+    private final ConversationService service = new ConversationService(conversations, messages, registry, sessions);
     private final Conversation existing = Conversation.create("alice", "assistent", ConversationService.DEFAULT_TITLE);
 
     @BeforeEach
@@ -84,11 +84,11 @@ class ConversationServiceTest {
     }
 
     @Test
-    void deleteRemovesConversationAndMemory() {
+    void deleteRemovesConversationAndSession() {
         service.delete(existing.id(), "alice");
 
         verify(conversations).delete(existing);
-        verify(memory).clear(existing.id().toString());
+        verify(sessions).delete(existing.id().toString());
     }
 
     @Test

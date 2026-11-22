@@ -31,10 +31,12 @@ spring:
     chat:
       client:
         enabled: false
-      memory:
-        repository:
-          jdbc:
-            initialize-schema: never
+    session:
+      # Kontext der Unterhaltungen; der anzeigbare Verlauf liegt dauerhaft in chat_message
+      time-to-live: ${SAI_SESSION_TTL:3650d}
+      repository:
+        jdbc:
+          initialize-schema: never
     vectorstore:
       pgvector:
         initialize-schema: false

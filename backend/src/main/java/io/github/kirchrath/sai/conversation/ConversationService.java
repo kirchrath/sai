@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import io.github.kirchrath.sai.agent.AgentRegistry;
 import io.github.kirchrath.sai.web.NotFoundException;
-import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.session.SessionService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,14 +18,14 @@ public class ConversationService {
     private final ConversationRepository conversations;
     private final ChatMessageRepository messages;
     private final AgentRegistry agentRegistry;
-    private final ChatMemory chatMemory;
+    private final SessionService sessionService;
 
     public ConversationService(ConversationRepository conversations, ChatMessageRepository messages,
-            AgentRegistry agentRegistry, ChatMemory chatMemory) {
+            AgentRegistry agentRegistry, SessionService sessionService) {
         this.conversations = conversations;
         this.messages = messages;
         this.agentRegistry = agentRegistry;
-        this.chatMemory = chatMemory;
+        this.sessionService = sessionService;
     }
 
     public List<Conversation> list(String userId) {
@@ -54,7 +54,7 @@ public class ConversationService {
     @Transactional
     public void delete(UUID id, String userId) {
         conversations.delete(get(id, userId));
-        chatMemory.clear(id.toString());
+        sessionService.delete(id.toString());
     }
 
     /**
