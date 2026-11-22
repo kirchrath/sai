@@ -41,7 +41,9 @@ export default function ChatView({ conversation, agent, onUpdated }: Props) {
       conversationId: conversation.id,
       role: 'USER',
       content,
+      version: 0,
       createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
     };
     setMessages((list) => [...list, optimistic]);
     setStreaming('');

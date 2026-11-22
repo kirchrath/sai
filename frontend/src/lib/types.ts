@@ -16,8 +16,9 @@ export interface Conversation {
   id: string;
   agentId: string;
   title: string;
+  version: number;
   createdAt: string;
-  updatedAt: string;
+  modifiedAt: string;
 }
 
 export interface ChatMessage {
@@ -25,7 +26,9 @@ export interface ChatMessage {
   conversationId: string;
   role: 'USER' | 'ASSISTANT';
   content: string;
+  version: number;
   createdAt: string;
+  modifiedAt: string;
 }
 
 export interface KnowledgeDocument {
@@ -36,7 +39,9 @@ export interface KnowledgeDocument {
   sizeBytes: number;
   chunkCount: number;
   uploadedBy: string;
+  version: number;
   createdAt: string;
+  modifiedAt: string;
 }
 
 export const TOOL_LABELS: Record<AgentTool, string> = {

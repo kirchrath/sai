@@ -60,7 +60,7 @@ export default function ConversationList({ conversations, agents, activeId, onSe
                       {c.title}
                     </p>
                     <p className="is-size-7 conversation-meta">
-                      {agentName(c.agentId)} · {new Date(c.updatedAt).toLocaleString('de-DE')}
+                      {agentName(c.agentId)} · {new Date(c.modifiedAt).toLocaleString('de-DE')}
                     </p>
                   </div>
                   <div className="is-flex is-align-items-center is-flex-shrink-0 ml-2">

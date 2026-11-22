@@ -1,6 +1,5 @@
 package io.github.kirchrath.sai.conversation;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,62 +13,63 @@ import org.springframework.transaction.annotation.Transactional;
 public class ConversationService {
 
     static final String DEFAULT_TITLE = "Neue Unterhaltung";
-    private static final int MAX_TITLE = 200;
+    static final int MAX_TITLE_LENGTH = 60;
 
-    private final ConversationRepository repository;
+    private final ConversationRepository conversations;
+    private final ChatMessageRepository messages;
     private final AgentRegistry agentRegistry;
     private final ChatMemory chatMemory;
 
-    public ConversationService(ConversationRepository repository, AgentRegistry agentRegistry, ChatMemory chatMemory) {
-        this.repository = repository;
+    public ConversationService(ConversationRepository conversations, ChatMessageRepository messages,
+            AgentRegistry agentRegistry, ChatMemory chatMemory) {
+        this.conversations = conversations;
+        this.messages = messages;
         this.agentRegistry = agentRegistry;
         this.chatMemory = chatMemory;
     }
 
     public List<Conversation> list(String userId) {
-        return repository.findByUser(userId);
+        return conversations.findByUserIdOrderByModifiedAtDesc(userId);
     }
 
     public Conversation create(String userId, String agentId) {
         agentRegistry.get(agentId);
-        Instant now = Instant.now();
-        Conversation conversation = new Conversation(UUID.randomUUID(), userId, agentId, DEFAULT_TITLE, now, now);
-        repository.insert(conversation);
-        return conversation;
+        return conversations.save(Conversation.create(userId, agentId, DEFAULT_TITLE));
     }
 
     public Conversation get(UUID id, String userId) {
-        return repository.find(id, userId).orElseThrow(() -> new NotFoundException("Unterhaltung nicht gefunden"));
+        return conversations.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new NotFoundException("Unterhaltung nicht gefunden"));
     }
 
     public List<ChatMessage> messages(UUID id, String userId) {
         get(id, userId);
-        return repository.findMessages(id);
+        return messages.findByConversationIdOrderByCreatedAtAsc(id);
     }
 
     public Conversation rename(UUID id, String userId, String title) {
-        get(id, userId);
-        repository.updateTitle(id, sanitizeTitle(title));
-        return get(id, userId);
+        return conversations.save(get(id, userId).withTitle(sanitizeTitle(title)));
     }
 
     @Transactional
     public void delete(UUID id, String userId) {
-        get(id, userId);
-        repository.delete(id);
+        conversations.delete(get(id, userId));
         chatMemory.clear(id.toString());
     }
 
-    /** Speichert eine Nachricht im anzeigbaren Verlauf und setzt beim ersten Beitrag den Titel. */
+    /**
+     * Speichert eine Nachricht im anzeigbaren Verlauf, aktualisiert den Aenderungszeitpunkt der Unterhaltung
+     * und setzt beim ersten Benutzerbeitrag den Titel.
+     */
     @Transactional
-    public ChatMessage append(Conversation conversation, ChatMessage.Role role, String content) {
-        Instant now = Instant.now();
-        ChatMessage message = new ChatMessage(UUID.randomUUID(), conversation.id(), role, content, now);
-        repository.insertMessage(message);
-        repository.touch(conversation.id(), now);
+    public ChatMessage append(UUID conversationId, ChatMessage.Role role, String content) {
+        Conversation conversation = conversations.findById(conversationId)
+                .orElseThrow(() -> new NotFoundException("Unterhaltung nicht gefunden"));
+        ChatMessage message = messages.save(ChatMessage.create(conversationId, role, content));
         if (role == ChatMessage.Role.USER && DEFAULT_TITLE.equals(conversation.title())) {
-            repository.updateTitle(conversation.id(), sanitizeTitle(content));
+            conversation = conversation.withTitle(sanitizeTitle(content));
         }
+        conversations.save(conversation);
         return message;
     }
 
@@ -78,6 +78,6 @@ public class ConversationService {
         if (title.isEmpty()) {
             return DEFAULT_TITLE;
         }
-        return title.length() > 60 ? title.substring(0, 60) + "…" : title.substring(0, Math.min(title.length(), MAX_TITLE));
+        return title.length() > MAX_TITLE_LENGTH ? title.substring(0, MAX_TITLE_LENGTH) + "…" : title;
     }
 }

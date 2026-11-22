@@ -4,36 +4,42 @@ CREATE EXTENSION IF NOT EXISTS hstore;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Konversationen pro Benutzer (Keycloak-Subject)
+-- Alle Entities: UUID als ID, Version (optimistisches Locking), Erstellungs- und Aenderungszeitpunkt
 CREATE TABLE conversation (
-    id          UUID PRIMARY KEY,
-    user_id     VARCHAR(255) NOT NULL,
-    agent_id    VARCHAR(64)  NOT NULL,
-    title       VARCHAR(200) NOT NULL,
-    created_at  TIMESTAMPTZ  NOT NULL,
-    updated_at  TIMESTAMPTZ  NOT NULL
+    id           UUID PRIMARY KEY,
+    version      BIGINT       NOT NULL,
+    user_id      VARCHAR(255) NOT NULL,
+    agent_id     VARCHAR(64)  NOT NULL,
+    title        VARCHAR(200) NOT NULL,
+    created_at   TIMESTAMPTZ  NOT NULL,
+    modified_at  TIMESTAMPTZ  NOT NULL
 );
-CREATE INDEX conversation_user_updated_idx ON conversation (user_id, updated_at DESC);
+CREATE INDEX conversation_user_modified_idx ON conversation (user_id, modified_at DESC);
 
 -- Vollstaendiger, anzeigbarer Verlauf (unabhaengig vom Kontextfenster der ChatMemory)
 CREATE TABLE chat_message (
     id               UUID PRIMARY KEY,
+    version          BIGINT      NOT NULL,
     conversation_id  UUID        NOT NULL REFERENCES conversation (id) ON DELETE CASCADE,
     role             VARCHAR(16) NOT NULL CHECK (role IN ('USER', 'ASSISTANT')),
     content          TEXT        NOT NULL,
-    created_at       TIMESTAMPTZ NOT NULL
+    created_at       TIMESTAMPTZ NOT NULL,
+    modified_at      TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX chat_message_conversation_idx ON chat_message (conversation_id, created_at);
 
 -- Hochgeladene Wissensdokumente pro Agent
 CREATE TABLE knowledge_document (
     id            UUID PRIMARY KEY,
+    version       BIGINT       NOT NULL,
     agent_id      VARCHAR(64)  NOT NULL,
     filename      VARCHAR(500) NOT NULL,
     content_type  VARCHAR(200),
     size_bytes    BIGINT       NOT NULL,
     chunk_count   INTEGER      NOT NULL,
     uploaded_by   VARCHAR(255) NOT NULL,
-    created_at    TIMESTAMPTZ  NOT NULL
+    created_at    TIMESTAMPTZ  NOT NULL,
+    modified_at   TIMESTAMPTZ  NOT NULL
 );
 CREATE INDEX knowledge_document_agent_idx ON knowledge_document (agent_id, created_at DESC);
 

@@ -1,12 +1,10 @@
 package io.github.kirchrath.sai.knowledge;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import io.github.kirchrath.sai.agent.AgentDefinition;
 import io.github.kirchrath.sai.agent.AgentRegistry;
 import io.github.kirchrath.sai.config.SaiProperties;
 import io.github.kirchrath.sai.web.NotFoundException;
@@ -47,7 +45,7 @@ public class KnowledgeService {
 
     public List<KnowledgeDocument> list(String agentId) {
         requireKnowledgeAgent(agentId);
-        return repository.findByAgent(agentId);
+        return repository.findByAgentIdOrderByCreatedAtDesc(agentId);
     }
 
     @Transactional
@@ -68,7 +66,6 @@ public class KnowledgeService {
         List<Document> extracted = new TikaDocumentReader(resource).get();
         TokenTextSplitter splitter = TokenTextSplitter.builder().withChunkSize(config.chunkSize()).build();
         List<Document> chunks = splitter.apply(extracted).stream()
-                .filter(c -> c.getText() != null && !c.getText().isBlank())
                 .map(c -> new Document(c.getText(), Map.of(
                         META_AGENT_ID, agentId,
                         META_DOCUMENT_ID, documentId.toString(),
@@ -83,19 +80,17 @@ public class KnowledgeService {
             throw new IllegalStateException("Embedding fehlgeschlagen: " + e.getMessage(), e);
         }
 
-        KnowledgeDocument document = new KnowledgeDocument(documentId, agentId, filename, file.getContentType(),
-                file.getSize(), chunks.size(), uploadedBy, Instant.now());
-        repository.insert(document);
-        return document;
+        return repository.save(KnowledgeDocument.create(documentId, agentId, filename, file.getContentType(),
+                file.getSize(), chunks.size(), uploadedBy));
     }
 
     @Transactional
     public void delete(String agentId, UUID documentId) {
         requireKnowledgeAgent(agentId);
-        repository.find(agentId, documentId)
+        KnowledgeDocument document = repository.findByIdAndAgentId(documentId, agentId)
                 .orElseThrow(() -> new NotFoundException("Dokument nicht gefunden"));
         vectorStore.delete(new FilterExpressionBuilder().eq(META_DOCUMENT_ID, documentId.toString()).build());
-        repository.delete(documentId);
+        repository.delete(document);
     }
 
     public SearchRequest searchRequest(String agentId, String query) {
@@ -126,11 +121,9 @@ public class KnowledgeService {
         return new FilterExpressionBuilder().eq(META_AGENT_ID, agentId).build();
     }
 
-    private AgentDefinition requireKnowledgeAgent(String agentId) {
-        AgentDefinition agent = agentRegistry.get(agentId);
-        if (!agent.usesKnowledge()) {
+    private void requireKnowledgeAgent(String agentId) {
+        if (!agentRegistry.get(agentId).usesKnowledge()) {
             throw new IllegalArgumentException("Agent " + agentId + " hat keine Wissensbasis aktiviert");
         }
-        return agent;
     }
 }
