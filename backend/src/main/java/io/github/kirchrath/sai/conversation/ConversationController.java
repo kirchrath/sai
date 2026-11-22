@@ -1,19 +1,12 @@
 package io.github.kirchrath.sai.conversation;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
-import io.github.kirchrath.sai.agent.AgentChatService;
-import io.github.kirchrath.sai.agent.AgentDefinition;
-import io.github.kirchrath.sai.agent.AgentRegistry;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
@@ -29,23 +22,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
-import reactor.core.scheduler.Schedulers;
 
 @RestController
 @RequestMapping("/api/conversations")
 public class ConversationController {
 
-    private static final Logger log = LoggerFactory.getLogger(ConversationController.class);
-
     private final ConversationService conversations;
-    private final AgentRegistry agentRegistry;
-    private final AgentChatService chatService;
+    private final ChatStreamService chatStream;
 
-    public ConversationController(ConversationService conversations, AgentRegistry agentRegistry,
-            AgentChatService chatService) {
+    public ConversationController(ConversationService conversations, ChatStreamService chatStream) {
         this.conversations = conversations;
-        this.agentRegistry = agentRegistry;
-        this.chatService = chatService;
+        this.chatStream = chatStream;
     }
 
     public record CreateRequest(@NotBlank String agentId) {
@@ -96,58 +83,16 @@ public class ConversationController {
     @PostMapping(path = "/{id}/messages", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     Flux<ServerSentEvent<Object>> send(@PathVariable UUID id, @Valid @RequestBody SendRequest body,
             @AuthenticationPrincipal Jwt jwt) {
-        Conversation conversation = conversations.get(id, jwt.getSubject());
-        AgentDefinition agent = agentRegistry.get(conversation.agentId());
-        conversations.append(conversation, ChatMessage.Role.USER, body.content());
-
-        StringBuilder answer = new StringBuilder();
-        AtomicBoolean saved = new AtomicBoolean();
-
-        Flux<ServerSentEvent<Object>> tokens = chatService.stream(agent, id.toString(), body.content())
-                .filter(chunk -> chunk != null && !chunk.isEmpty())
-                .doOnNext(answer::append)
-                .map(chunk -> ServerSentEvent.<Object>builder(Map.of("t", chunk)).event("token").build());
-
-        Flux<ServerSentEvent<Object>> done = Flux.defer(() -> {
-            saved.set(true);
-            ChatMessage message = conversations.append(conversation, ChatMessage.Role.ASSISTANT, answer.toString());
-            return Flux.just(ServerSentEvent.<Object>builder(message).event("done").build());
-        }).subscribeOn(Schedulers.boundedElastic());
-
-        Flux<ServerSentEvent<Object>> heartbeat = Flux.interval(Duration.ofSeconds(15))
-                .map(i -> ServerSentEvent.<Object>builder().comment("keepalive").build());
-
-        // Der LLM-Stream wird genau einmal abonniert; der Heartbeat endet mit dem "done"-Event.
-        return Flux.merge(tokens.concatWith(done), heartbeat)
-                .takeUntil(event -> "done".equals(event.event()))
-                .onErrorResume(e -> {
-                    log.warn("Chat-Stream fuer Unterhaltung {} fehlgeschlagen", id, e);
-                    savePartial(conversation, answer, saved, "\n\n[Fehler: Antwort unvollstaendig]");
-                    return Flux.just(ServerSentEvent.<Object>builder(Map.of("message", describe(e)))
-                            .event("error").build());
-                })
-                .doOnCancel(() -> savePartial(conversation, answer, saved, "\n\n[abgebrochen]"));
+        return chatStream.send(id, jwt.getSubject(), body.content()).map(ConversationController::toSse);
     }
 
-    private void savePartial(Conversation conversation, StringBuilder answer, AtomicBoolean saved, String suffix) {
-        if (!answer.isEmpty() && saved.compareAndSet(false, true)) {
-            conversations.append(conversation, ChatMessage.Role.ASSISTANT, answer + suffix);
-        }
-    }
-
-    /** Fehlermeldung inkl. Grundursache, z.B. "Request failed (401 Unauthorized ...)". */
-    static String describe(Throwable e) {
-        Throwable root = e;
-        while (root.getCause() != null && root.getCause() != root) {
-            root = root.getCause();
-        }
-        String top = message(e);
-        String cause = message(root);
-        return root == e || top.contains(cause) ? top : top + " (" + cause + ")";
-    }
-
-    private static String message(Throwable e) {
-        String message = e.getMessage();
-        return message == null || message.isBlank() ? e.getClass().getSimpleName() : message;
+    private static ServerSentEvent<Object> toSse(ChatEvent event) {
+        return switch (event) {
+            case ChatEvent.Token token -> ServerSentEvent.<Object>builder(Map.of("t", token.text())).event("token").build();
+            case ChatEvent.Done done -> ServerSentEvent.<Object>builder(done.message()).event("done").build();
+            case ChatEvent.Error error -> ServerSentEvent.<Object>builder(Map.of("message", error.message()))
+                    .event("error").build();
+            case ChatEvent.Heartbeat heartbeat -> ServerSentEvent.<Object>builder().comment("keepalive").build();
+        };
     }
 }

@@ -40,8 +40,9 @@ public record SaiProperties(
 
     /**
      * @param memoryMaxMessages Groesse des Kontextfensters, das dem Modell aus der ChatMemory mitgegeben wird
+     * @param heartbeatInterval Abstand der Keepalive-Kommentare im Chat-Stream
      */
-    public record Chat(@DefaultValue("30") int memoryMaxMessages) {
+    public record Chat(@DefaultValue("30") int memoryMaxMessages, @DefaultValue("15s") Duration heartbeatInterval) {
     }
 
     public record Knowledge(
